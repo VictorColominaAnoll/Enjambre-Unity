@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -6,18 +7,24 @@ public class BeesController : MonoBehaviour {
 	
 	// Private
 	private GameObject[] bees;
-	private GameObject hunter;
-	private GameObject prey;
+
+	private ArrayList prey;
+	private ArrayList hunter;
 	private float time;
 
 	// Public
+	public GameObject prefab;
 	public Transform master;
 	public float radio;
 
 	// Use this for initialization
 	void Start () {
-		updateBees();
+
+		prey = new ArrayList();
+		hunter = new ArrayList();
 		time = 0;
+
+		updateBees();
 	}
 
     // Update is called once per frame
@@ -27,14 +34,26 @@ public class BeesController : MonoBehaviour {
 			selectHunter();
 		}
 
-		if ( hunter != null && prey != null) {
-			hunt();
-		} 
+
+		// Esto del try catch me parece una cutrada... Aunque funciona se deberia cambiar.
+		// El problema es que las listas no funcionan. Se deberia hacer con el capacity pero por alguna razon, cuando no hay objetos adquiere como valor 4 cuando deberia
+		// ser 0 :/
+
+		try	{
+			if ( hunter[0] != null ) {
+				hunt();
+			}
+		}
+		catch (System.Exception) {
+		}
+
+		
 
 		beesDefenders();
 
 	}
 
+	// Funciones auxiliares
     private void updateBees() {
         bees = GameObject.FindGameObjectsWithTag("Bee");
     }
@@ -43,47 +62,84 @@ public class BeesController : MonoBehaviour {
         return GameObject.FindGameObjectWithTag("Neutral") != null;
     }
 
+	private void updateLists(){
+		hunter.TrimToSize();
+		prey.TrimToSize();
+	}
+
+	// Funciones motoras
     private void selectHunter() {
 
-		/* Determinamos la presa y el cazador */
-        prey = GameObject.FindGameObjectWithTag("Neutral");
-		prey.tag = "Prey";
+		GameObject cazador, neutralBee;
+		GameObject[] neutrals = GameObject.FindGameObjectsWithTag("Neutral");
 
-		hunter = bees[0];
-		hunter.tag = "Hunter";
+		for (int i = 0; i < bees.Length; i++) {
 
-		updateBees();
+			try {
+			
+				neutralBee = neutrals[i];
+
+				// Presa
+				neutralBee.tag = "Prey";
+				prey.Add(neutralBee);
+
+				// Cazador
+				cazador = bees[0];
+				cazador.tag = "Hunter";
+				hunter.Add(cazador);
+			}
+			catch (System.Exception) {
+				
+			}
+			
+			updateBees();
+
+		}
 
     }
 
  	private void hunt() {
-        /* Iniciamos la caza */
-		if(Vector3.Distance(hunter.transform.position, prey.transform.position) > 2f){
 
-			Vector3 dir = prey.transform.position - hunter.transform.position;
-			hunter.transform.Translate(dir.normalized * 5f * Time.deltaTime);
+		GameObject cazador, presa;
 
-		} else {
+		for (int i = 0; i < this.hunter.Capacity; i++) {
 
-			if (time > 3) {
-				
-				// All are Bee
-				hunter.tag = "Bee";
-				prey.tag = "Bee";
+			cazador = (GameObject) hunter[i];
+			presa = (GameObject) prey[i];
 
-				// Set to null
-				hunter = null;
-				prey = null;
+			/* Iniciamos la caza */
+			if(Vector3.Distance(cazador.transform.position, presa.transform.position) > 2f){
 
-				time = 0;
-
-				updateBees();
+				Vector3 dir = presa.transform.position - cazador.transform.position;
+				cazador.transform.Translate(dir.normalized * 5f * Time.deltaTime);
 
 			} else {
-				time += Time.deltaTime;
+
+				if (time > 3) {
+					
+					// All are Bee
+					cazador.tag = "Bee";
+					Instantiate(prefab, presa.transform.position, Quaternion.identity); 
+					GameObject.Destroy(presa);
+
+					// Set to null
+					hunter.Remove(cazador);
+					prey.Remove(presa);
+
+					time = 0;
+
+					updateBees();
+
+				} else {
+					time += Time.deltaTime;
+				}
+
 			}
 
+			updateLists();
+			
 		}
+		 
     }
 
     private void beesDefenders(){
@@ -98,8 +154,15 @@ public class BeesController : MonoBehaviour {
 				bee.transform.Translate(dir.normalized * 2f * Time.deltaTime);
 
 			} else {
-				// The Bees rotate around Master
-				bee.transform.RotateAround(master.position, Vector3.down, 50f * Time.deltaTime);
+				if (Vector3.Distance(bee.transform.position, master.position) < (radio - 0.2f) ) {
+					Vector3 dir = new Vector3(master.position.x + (radio - 0.2f) , master.position.y, master.position.z);
+
+					dir = dir - bee.transform.position;
+					bee.transform.Translate(dir.normalized * 2f * Time.deltaTime);
+				} else {
+					// The Bees rotate around Master
+					bee.transform.RotateAround(master.position, Vector3.down, 50f * Time.deltaTime);
+				}
 			}
 		}
 	}
